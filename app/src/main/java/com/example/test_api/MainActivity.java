@@ -11,6 +11,7 @@ import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.tensorflow.lite.Interpreter;
 
@@ -31,9 +32,13 @@ import kr.co.shineware.nlp.komoran.constant.DEFAULT_MODEL;
 import kr.co.shineware.nlp.komoran.core.Komoran;
 import kr.co.shineware.nlp.komoran.model.KomoranResult;
 import kr.co.shineware.nlp.komoran.model.Token;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity {
     String a;
+    String chatbot;
     Button btn;
      TextView lv;
     EditText et;
@@ -46,7 +51,6 @@ public class MainActivity extends AppCompatActivity {
         lv=findViewById(R.id.lv);
         btn=findViewById(R.id.btn);
         et=findViewById(R.id.et);
-
         lv.setMovementMethod(new ScrollingMovementMethod());
         System.out.println("시작");
         set_they();
@@ -62,9 +66,9 @@ public class MainActivity extends AppCompatActivity {
                         System.out.println(text);
                         et.setText("");
                         lv.append("민준:"+text+"\n");
-                        String output=post("https://api.dialogflow.com/v1/query?v=20150910",text);
+                        String output=get_output(text);
                         lv.append("기분:"+a+"\n");
-                        lv.append("챗봇:"+output+"\n"+"\n");
+                        //lv.append("챗봇:"+output+"\n"+"\n");
                         //lv.add
 
                     }
@@ -144,8 +148,7 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    // 모델 파일 인터프리터를 생성하는 공통 함수
-    // loadModelFile 함수에 예외가 포함되어 있기 때문에 반드시 try, catch 블록이 필요하다.
+
     private Interpreter getTfliteInterpreter(String modelPath) {
         try {
             return new Interpreter(loadModelFile(MainActivity.this, modelPath));
@@ -155,9 +158,6 @@ public class MainActivity extends AppCompatActivity {
         }
         return null;
     }
-
-    // 모델을 읽어오는 함수로, 텐서플로 라이트 홈페이지에 있다.
-    // MappedByteBuffer 바이트 버퍼를 Interpreter 객체에 전달하면 모델 해석을 할 수 있다.
     private MappedByteBuffer loadModelFile(Activity activity, String modelPath) throws IOException {
         AssetFileDescriptor fileDescriptor = activity.getAssets().openFd(modelPath);
         FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
@@ -167,63 +167,51 @@ public class MainActivity extends AppCompatActivity {
         return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
     }
 
+    public String get_output(String text){
+        this.chatbot="오류";
+        String asdf="";
+        NetworkHelper.getInstence().get_Weather_retrofit("20150910",text,"ko","민준").enqueue(new Callback<art>() {
+            @Override
+            public void onResponse(Call<art> call, Response<art> response) {
+                if (response.isSuccessful()) {
+                    System.out.println("성공");
+                    System.out.println(response.body().result);
 
+                    try {
+                        JSONObject as=new JSONObject(response.body().result.get("fulfillment").toString());
+                        String output=as.get("speech").toString();
+                        System.out.println(output);
+                        lv.append("챗봇:"+output+"\n"+"\n");
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
 
-
-
-
-
-
-    public String post(String strUrl, String text){
-        try {
-            URL url = new URL(strUrl);
-            HttpURLConnection con = (HttpURLConnection) url.openConnection();
-            con.setConnectTimeout(5000); //서버에 연결되는 Timeout 시간 설정
-            con.setReadTimeout(5000); // InputStream 읽어 오는 Timeout 시간 설정
-            con.addRequestProperty("Authorization","Bearer 957ea642f45647e98a071eaacd6b73bf"); //key값 설정
-
-            con.setRequestMethod("POST");
-
-            //json으로 message를 전달하고자 할 때
-            con.setRequestProperty("Content-Type", "application/json");
-            con.setDoInput(true);
-            con.setDoOutput(true); //POST 데이터를 OutputStream으로 넘겨 주겠다는 설정
-            con.setUseCaches(false);
-            con.setDefaultUseCaches(false);
-
-            OutputStreamWriter wr = new OutputStreamWriter(con.getOutputStream());
-            text=text.replaceAll(" ","");
-            String parameters="{lang:en,sessionId:12345,query:"+text+"}";
-            System.out.println(parameters);
-            wr.write(parameters);
-            wr.flush();
-            wr.close();
-
-            StringBuilder sb = new StringBuilder();
-            if (con.getResponseCode() == HttpURLConnection.HTTP_OK) {
-                //Stream을 처리해줘야 하는 귀찮음이 있음.
-                BufferedReader br = new BufferedReader(
-                        new InputStreamReader(con.getInputStream(), "utf-8"));
-                String line;
-                while ((line = br.readLine()) != null) {
-                    sb.append(line).append("\n");
+                } else {
+                    System.out.println(response.errorBody());
+                    System.out.println(response.raw());
+                    System.out.println(response.headers());
+                    System.out.println("실패");
+                    lv.append("챗봇:"+"실패"+"\n"+"\n");
                 }
-                br.close();
-                JSONObject js = new JSONObject(sb.toString());
-                JSONObject ajs=new JSONObject(js.get("result").toString());
-                JSONObject a=new JSONObject(ajs.get("fulfillment").toString());
-                System.out.println(""+a.get("speech").toString());
-                String answer=a.get("speech").toString();
-                return answer;
-            } else {
-                System.out.println(con.getResponseMessage());
-                return "통신 실패";
             }
-        } catch (Exception e){
-            System.err.println(e.toString());
-            return "오류";
-
-        }
+            @Override
+            public void onFailure(Call<art> call, Throwable t) {
+                System.out.println(t.fillInStackTrace());
+                System.out.println(t.toString());
+                System.out.println("실패..");
+                lv.append("챗봇:"+"실패"+"\n"+"\n");
+            }
+        });
+        System.out.println(chatbot);
+        return asdf;
     }
+
+
+
+
+
+
+
+
 
 }
